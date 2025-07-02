@@ -1,0 +1,707 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>付箋メモアプリ</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            font-family: 'Helvetica Neue', Arial, sans-serif;
+            background-color: #f5f5f5;
+            min-height: 100vh;
+            position: relative;
+        }
+
+        .header {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            background-color: #fff;
+            padding: 15px 20px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            z-index: 1000;
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }
+
+        .add-note-btn {
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: background-color 0.3s;
+        }
+
+        .add-note-btn:hover {
+            background-color: #45a049;
+        }
+
+        .export-btn {
+            background-color: #2196F3;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: background-color 0.3s;
+        }
+
+        .export-btn:hover {
+            background-color: #1976D2;
+        }
+
+        .import-btn {
+            background-color: #FF9800;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: background-color 0.3s;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .import-btn:hover {
+            background-color: #F57C00;
+        }
+
+        .import-btn input[type="file"] {
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            opacity: 0;
+            cursor: pointer;
+        }
+
+        .sort-btn {
+            background-color: #9C27B0;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: background-color 0.3s;
+        }
+
+        .sort-btn:hover {
+            background-color: #7B1FA2;
+        }
+
+        .workspace {
+            margin-top: 80px;
+            position: relative;
+            min-height: calc(100vh - 100px);
+        }
+
+        .sticky-note {
+            position: absolute;
+            width: 240px;
+            min-height: 220px;
+            background-color: #ffeb3b;
+            padding: 0;
+            box-shadow: 2px 2px 10px rgba(0, 0, 0, 0.1);
+            cursor: default;
+            transition: transform 0.2s, box-shadow 0.2s;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .sticky-note:hover {
+            transform: scale(1.02);
+            box-shadow: 3px 3px 15px rgba(0, 0, 0, 0.2);
+        }
+
+        .sticky-note.dragging {
+            opacity: 0.8;
+            z-index: 999;
+        }
+
+        .note-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 12px;
+            gap: 8px;
+            background-color: rgba(0, 0, 0, 0.05);
+            cursor: grab;
+            user-select: none;
+        }
+
+        .note-header:active {
+            cursor: grabbing;
+        }
+
+        .drag-handle {
+            display: flex;
+            gap: 2px;
+            margin-right: auto;
+            padding: 0 2px;
+        }
+
+        .drag-handle::before,
+        .drag-handle::after {
+            content: '⋮';
+            color: rgba(0, 0, 0, 0.3);
+            font-size: 14px;
+            line-height: 1;
+            font-weight: bold;
+        }
+
+        .note-header:hover .drag-handle::before,
+        .note-header:hover .drag-handle::after {
+            color: rgba(0, 0, 0, 0.5);
+        }
+
+        .color-picker {
+            display: flex;
+            gap: 4px;
+        }
+
+        .color-btn {
+            width: 18px;
+            height: 18px;
+            border: 2px solid transparent;
+            border-radius: 50%;
+            cursor: pointer;
+            transition: border-color 0.2s;
+        }
+
+        .color-btn:hover,
+        .color-btn.active {
+            border-color: #333;
+        }
+
+        .delete-btn {
+            background-color: transparent;
+            color: #666;
+            border: none;
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            cursor: pointer;
+            font-size: 18px;
+            line-height: 1;
+            padding: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background-color 0.3s, color 0.3s;
+        }
+
+        .delete-btn:hover {
+            background-color: #f44336;
+            color: white;
+        }
+
+        .note-content {
+            flex: 1;
+            background-color: transparent;
+            border: none;
+            resize: none;
+            outline: none;
+            font-size: 14px;
+            line-height: 1.5;
+            font-family: inherit;
+            padding: 15px;
+            padding-bottom: 35px;
+            cursor: text;
+        }
+
+        .note-footer {
+            position: absolute;
+            bottom: 10px;
+            left: 15px;
+            right: 15px;
+            font-size: 11px;
+            color: rgba(0, 0, 0, 0.5);
+            text-align: right;
+            user-select: none;
+        }
+
+        /* 付箋の色バリエーション */
+        .sticky-note.yellow {
+            background-color: #ffeb3b;
+        }
+
+        .sticky-note.yellow .note-header {
+            background-color: rgba(0, 0, 0, 0.05);
+        }
+
+        .sticky-note.pink {
+            background-color: #f48fb1;
+        }
+
+        .sticky-note.pink .note-header {
+            background-color: rgba(0, 0, 0, 0.05);
+        }
+
+        .sticky-note.blue {
+            background-color: #81d4fa;
+        }
+
+        .sticky-note.blue .note-header {
+            background-color: rgba(0, 0, 0, 0.05);
+        }
+
+        .sticky-note.green {
+            background-color: #aed581;
+        }
+
+        .sticky-note.green .note-header {
+            background-color: rgba(0, 0, 0, 0.05);
+        }
+
+        .sticky-note.orange {
+            background-color: #ffcc80;
+        }
+
+        .sticky-note.orange .note-header {
+            background-color: rgba(0, 0, 0, 0.05);
+        }
+
+        .sticky-note.purple {
+            background-color: #ce93d8;
+        }
+
+        .sticky-note.purple .note-header {
+            background-color: rgba(0, 0, 0, 0.05);
+        }
+
+        .save-indicator {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background-color: #333;
+            color: white;
+            padding: 10px 20px;
+            border-radius: 5px;
+            opacity: 0;
+            transition: opacity 0.3s;
+            pointer-events: none;
+        }
+
+        .save-indicator.show {
+            opacity: 0.8;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <button class="add-note-btn" onclick="addNewNote()">＋ 新しい付箋を追加</button>
+        <button class="export-btn" onclick="exportNotes()">エクスポート</button>
+        <button class="import-btn">
+            インポート
+            <input type="file" accept=".json" onchange="importNotes(event)">
+        </button>
+        <button class="sort-btn" onclick="sortNotes()">ソート</button>
+        <span style="color: #666; font-size: 14px;">付箋をドラッグして移動できます</span>
+    </div>
+
+    <div class="workspace" id="workspace"></div>
+
+    <div class="save-indicator" id="saveIndicator">保存しました</div>
+
+    <script>
+        let notes = [];
+        let draggedNote = null;
+        let dragOffset = { x: 0, y: 0 };
+        let highestZIndex = 1;
+
+        // 日時フォーマット
+        function formatDate(date) {
+            const d = new Date(date);
+            const year = d.getFullYear();
+            const month = String(d.getMonth() + 1).padStart(2, '0');
+            const day = String(d.getDate()).padStart(2, '0');
+            const hours = String(d.getHours()).padStart(2, '0');
+            const minutes = String(d.getMinutes()).padStart(2, '0');
+            return `${year}/${month}/${day} ${hours}:${minutes}`;
+        }
+
+        // 初期化
+        function init() {
+            loadNotes();
+            if (notes.length === 0) {
+                // 初回起動時はサンプル付箋を追加
+                addNewNote(100, 100, 'yellow', 'ここにメモを入力してください');
+            }
+        }
+
+        // 新しい付箋を追加
+        function addNewNote(x = null, y = null, color = null, text = '') {
+            const workspace = document.getElementById('workspace');
+            const workspaceRect = workspace.getBoundingClientRect();
+            
+            // 位置が指定されていない場合はランダムに配置
+            if (x === null || y === null) {
+                x = Math.random() * (workspaceRect.width - 260) + 10;
+                y = Math.random() * (workspaceRect.height - 260) + 10;
+            }
+
+            // 色が指定されていない場合はランダムに選択
+            if (color === null) {
+                const colors = ['yellow', 'pink', 'blue', 'green', 'orange', 'purple'];
+                color = colors[Math.floor(Math.random() * colors.length)];
+            }
+
+            const noteId = Date.now();
+            const now = new Date().toISOString();
+            const note = {
+                id: noteId,
+                x: x,
+                y: y,
+                color: color,
+                text: text,
+                zIndex: highestZIndex++,
+                updatedAt: now
+            };
+
+            notes.push(note);
+            createNoteElement(note);
+            saveNotes();
+        }
+
+        // 付箋要素を作成
+        function createNoteElement(note) {
+            const noteEl = document.createElement('div');
+            noteEl.className = `sticky-note ${note.color}`;
+            noteEl.id = `note-${note.id}`;
+            noteEl.style.left = `${note.x}px`;
+            noteEl.style.top = `${note.y}px`;
+            noteEl.style.zIndex = note.zIndex;
+
+            noteEl.innerHTML = `
+                <div class="note-header">
+                    <span class="drag-handle" title="ドラッグして移動"></span>
+                    <div class="color-picker">
+                        <div class="color-btn ${note.color === 'yellow' ? 'active' : ''}" 
+                             style="background-color: #ffeb3b" 
+                             onclick="changeNoteColor(${note.id}, 'yellow')"></div>
+                        <div class="color-btn ${note.color === 'pink' ? 'active' : ''}" 
+                             style="background-color: #f48fb1" 
+                             onclick="changeNoteColor(${note.id}, 'pink')"></div>
+                        <div class="color-btn ${note.color === 'blue' ? 'active' : ''}" 
+                             style="background-color: #81d4fa" 
+                             onclick="changeNoteColor(${note.id}, 'blue')"></div>
+                        <div class="color-btn ${note.color === 'green' ? 'active' : ''}" 
+                             style="background-color: #aed581" 
+                             onclick="changeNoteColor(${note.id}, 'green')"></div>
+                        <div class="color-btn ${note.color === 'orange' ? 'active' : ''}" 
+                             style="background-color: #ffcc80" 
+                             onclick="changeNoteColor(${note.id}, 'orange')"></div>
+                        <div class="color-btn ${note.color === 'purple' ? 'active' : ''}" 
+                             style="background-color: #ce93d8" 
+                             onclick="changeNoteColor(${note.id}, 'purple')"></div>
+                    </div>
+                    <button class="delete-btn" onclick="deleteNote(${note.id})" title="削除">×</button>
+                </div>
+                <textarea class="note-content" 
+                          placeholder="メモを入力..." 
+                          onblur="updateNoteText(${note.id}, this.value)">${note.text}</textarea>
+                <div class="note-footer">
+                    更新: <span id="updated-${note.id}">${formatDate(note.updatedAt)}</span>
+                </div>
+            `;
+
+            // ドラッグイベントの設定
+            noteEl.addEventListener('mousedown', startDrag);
+            noteEl.addEventListener('click', () => bringToFront(note.id));
+
+            document.getElementById('workspace').appendChild(noteEl);
+        }
+
+        // 付箋の色を変更
+        function changeNoteColor(noteId, color) {
+            const note = notes.find(n => n.id === noteId);
+            if (note) {
+                note.color = color;
+                const noteEl = document.getElementById(`note-${noteId}`);
+                noteEl.className = `sticky-note ${color}`;
+                
+                // アクティブなカラーボタンを更新
+                const colorBtns = noteEl.querySelectorAll('.color-btn');
+                colorBtns.forEach(btn => btn.classList.remove('active'));
+                const colors = ['yellow', 'pink', 'blue', 'green', 'orange', 'purple'];
+                const activeIndex = colors.indexOf(color);
+                if (activeIndex !== -1) {
+                    colorBtns[activeIndex].classList.add('active');
+                }
+                
+                saveNotes();
+            }
+        }
+
+        // 付箋のテキストを更新
+        function updateNoteText(noteId, text) {
+            const note = notes.find(n => n.id === noteId);
+            if (note && note.text !== text) {
+                note.text = text;
+                note.updatedAt = new Date().toISOString();
+                
+                // 更新日時の表示を更新
+                const updatedEl = document.getElementById(`updated-${noteId}`);
+                if (updatedEl) {
+                    updatedEl.textContent = formatDate(note.updatedAt);
+                }
+                
+                saveNotes();
+            }
+        }
+
+        // 付箋を削除
+        function deleteNote(noteId) {
+            if (confirm('この付箋を削除しますか？')) {
+                notes = notes.filter(n => n.id !== noteId);
+                const noteEl = document.getElementById(`note-${noteId}`);
+                if (noteEl) {
+                    noteEl.remove();
+                }
+                saveNotes();
+            }
+        }
+
+        // 付箋を最前面に移動
+        function bringToFront(noteId) {
+            const note = notes.find(n => n.id === noteId);
+            if (note) {
+                note.zIndex = highestZIndex++;
+                const noteEl = document.getElementById(`note-${noteId}`);
+                if (noteEl) {
+                    noteEl.style.zIndex = note.zIndex;
+                }
+                saveNotes();
+            }
+        }
+
+        // ドラッグ開始
+        function startDrag(e) {
+            // ヘッダー以外のクリックは無視
+            if (!e.target.closest('.note-header')) {
+                return;
+            }
+
+            // ボタンやカラーピッカーのクリックは無視
+            if (e.target.classList.contains('delete-btn') || 
+                e.target.classList.contains('color-btn')) {
+                return;
+            }
+
+            const noteEl = e.target.closest('.sticky-note');
+            if (!noteEl) return;
+
+            draggedNote = noteEl;
+            const rect = noteEl.getBoundingClientRect();
+            dragOffset.x = e.clientX - rect.left;
+            dragOffset.y = e.clientY - rect.top;
+
+            noteEl.classList.add('dragging');
+
+            document.addEventListener('mousemove', drag);
+            document.addEventListener('mouseup', stopDrag);
+            e.preventDefault();
+        }
+
+        // ドラッグ中
+        function drag(e) {
+            if (!draggedNote) return;
+
+            const workspace = document.getElementById('workspace');
+            const workspaceRect = workspace.getBoundingClientRect();
+            
+            let x = e.clientX - workspaceRect.left - dragOffset.x;
+            let y = e.clientY - workspaceRect.top - dragOffset.y;
+
+            // 境界チェック
+            x = Math.max(0, Math.min(x, workspaceRect.width - draggedNote.offsetWidth));
+            y = Math.max(0, Math.min(y, workspaceRect.height - draggedNote.offsetHeight));
+
+            draggedNote.style.left = `${x}px`;
+            draggedNote.style.top = `${y}px`;
+
+            // データを更新
+            const noteId = parseInt(draggedNote.id.replace('note-', ''));
+            const note = notes.find(n => n.id === noteId);
+            if (note) {
+                note.x = x;
+                note.y = y;
+            }
+        }
+
+        // ドラッグ終了
+        function stopDrag() {
+            if (draggedNote) {
+                draggedNote.classList.remove('dragging');
+                saveNotes();
+            }
+            
+            draggedNote = null;
+            document.removeEventListener('mousemove', drag);
+            document.removeEventListener('mouseup', stopDrag);
+        }
+
+        // ノートを保存
+        function saveNotes() {
+            try {
+                localStorage.setItem('stickyNotes', JSON.stringify(notes));
+                showSaveIndicator();
+            } catch (e) {
+                console.warn('localStorage is not available in this environment');
+            }
+        }
+
+        // ノートを読み込み
+        function loadNotes() {
+            try {
+                const saved = localStorage.getItem('stickyNotes');
+                if (saved) {
+                    notes = JSON.parse(saved);
+                    // 最高のz-indexを更新
+                    notes.forEach(note => {
+                        if (note.zIndex >= highestZIndex) {
+                            highestZIndex = note.zIndex + 1;
+                        }
+                        // 古いデータに更新日時がない場合は追加
+                        if (!note.updatedAt) {
+                            note.updatedAt = new Date().toISOString();
+                        }
+                        createNoteElement(note);
+                    });
+                }
+            } catch (e) {
+                console.warn('localStorage is not available in this environment');
+            }
+        }
+
+        // 保存インジケーターを表示
+        function showSaveIndicator() {
+            const indicator = document.getElementById('saveIndicator');
+            indicator.classList.add('show');
+            setTimeout(() => {
+                indicator.classList.remove('show');
+            }, 1500);
+        }
+
+        // エクスポート機能
+        function exportNotes() {
+            const dataStr = JSON.stringify(notes, null, 2);
+            const dataBlob = new Blob([dataStr], {type: 'application/json'});
+            
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(dataBlob);
+            link.download = `sticky_notes_${new Date().toISOString().slice(0, 10)}.json`;
+            link.click();
+            
+            URL.revokeObjectURL(link.href);
+        }
+
+        // インポート機能
+        function importNotes(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const importedNotes = JSON.parse(e.target.result);
+                    
+                    // バリデーション
+                    if (!Array.isArray(importedNotes)) {
+                        alert('無効なファイル形式です');
+                        return;
+                    }
+
+                    // 既存の付箋を削除
+                    const workspace = document.getElementById('workspace');
+                    workspace.innerHTML = '';
+                    
+                    // 新しいデータをセット
+                    notes = importedNotes;
+                    highestZIndex = 1;
+                    
+                    // 付箋を再作成
+                    notes.forEach(note => {
+                        if (note.zIndex >= highestZIndex) {
+                            highestZIndex = note.zIndex + 1;
+                        }
+                        // 古いデータに更新日時がない場合は追加
+                        if (!note.updatedAt) {
+                            note.updatedAt = new Date().toISOString();
+                        }
+                        createNoteElement(note);
+                    });
+                    
+                    saveNotes();
+                    alert('インポートが完了しました');
+                } catch (err) {
+                    alert('ファイルの読み込みに失敗しました');
+                    console.error(err);
+                }
+            };
+            
+            reader.readAsText(file);
+            
+            // 同じファイルを再度選択できるようにリセット
+            event.target.value = '';
+        }
+
+        // ソート機能
+        function sortNotes() {
+            // 更新日時でソート（新しい順）
+            notes.sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt));
+            
+            // 配置の設定
+            const noteWidth = 260;  // 付箋の幅 + マージン
+            const noteHeight = 260; // 付箋の高さ + マージン
+            const startX = 20;      // 開始X座標
+            const startY = 20;      // 開始Y座標
+            
+            const workspace = document.getElementById('workspace');
+            const workspaceRect = workspace.getBoundingClientRect();
+            const notesPerRow = Math.floor(workspaceRect.width / noteWidth);
+            
+            // 各付箋の新しい位置を設定
+            notes.forEach((note, index) => {
+                const row = Math.floor(index / notesPerRow);
+                const col = index % notesPerRow;
+                
+                note.x = startX + (col * noteWidth);
+                note.y = startY + (row * noteHeight);
+                
+                // DOM要素も更新
+                const noteEl = document.getElementById(`note-${note.id}`);
+                if (noteEl) {
+                    noteEl.style.left = `${note.x}px`;
+                    noteEl.style.top = `${note.y}px`;
+                    
+                    // アニメーションを追加
+                    noteEl.style.transition = 'left 0.3s ease, top 0.3s ease';
+                    
+                    // アニメーション後にtransitionを削除
+                    setTimeout(() => {
+                        noteEl.style.transition = '';
+                    }, 300);
+                }
+            });
+            
+            saveNotes();
+            showSaveIndicator();
+        }
+
+        // 初期化実行
+        init();
+    </script>
+</body>
+</html>
